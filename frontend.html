@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Pension Eligibility Checker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    .container {
+      background-color: lightgoldenrodyellow;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 600px;
+      margin: auto;
+    }
+    label, input, select {
+      display: block;
+      margin: 10px 0;
+    }
+    button {
+      margin: 5px;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .eligible { background-color: #d4edda; color: #155724; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Pension Eligibility Checker</h2>
+    <form id="aadhaarForm">
+      <label for="aadhaar">Enter Aadhaar Number:</label>
+      <input type="text" id="aadhaar" required />
+      <button type="submit">Check Eligibility</button>
+    </form>
+
+    <div id="result" class="result" style="display:none;"></div>
+    <div id="childrenSection"></div>
+  </div>
+
+  <script>
+    document.getElementById('aadhaarForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const aadhaar = document.getElementById('aadhaar').value;
+      const response = await fetch('http://localhost:5000/api/check-eligibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aadhaar, age: 65, income: 90000, houseCount: 1, ownsCar: false })
+      });
+
+      const data = await response.json();
+      const resultDiv = document.getElementById('result');
+
+      if (!data.eligible) {
+        alert('❌ Not Eligible for Pension');
+        resultDiv.style.display = 'none';
+        document.getElementById('childrenSection').innerHTML = '';
+      } else {
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'result eligible';
+        resultDiv.innerHTML = '✅ Eligible for Pension';
+
+        // Fetch children info
+        const childrenRes = await fetch(`http://localhost:5000/api/children/${aadhaar}`);
+        const children = await childrenRes.json();
+
+        const childrenSection = document.getElementById('childrenSection');
+        childrenSection.innerHTML = '<h3>Children Aadhaar Numbers</h3>';
+        children.forEach(child => {
+          const btn = document.createElement('button');
+          btn.textContent = `${child.name} (${child.aadhaar})`;
+          btn.onclick = async () => {
+            const detailRes = await fetch('http://localhost:5000/api/check-child-contribution', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ income: child.income, aadhaar: child.aadhaar })
+            });
+            const detail = await detailRes.json();
+            const savings = 48000 - detail.contribution;
+            alert(`Child Aadhaar: ${child.aadhaar}\nIncome: ₹${child.income}\nContribution: ₹${detail.contribution} (${detail.percentage}%)\nSavings to Government: ₹${savings}`);
+          };
+          childrenSection.appendChild(btn);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
